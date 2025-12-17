@@ -1,0 +1,187 @@
+extends Node2D
+class_name Arena
+
+@export var normal_color: Color
+@export var blocked_color: Color
+@export var critical_color: Color
+@export var hp_color: Color
+@export var coin_drop_increase_per_wave := 0.15 # 每波掉落+15%（0.1=10%）
+@export var coin_drop_add_per_wave := 0         # 可选：每波固定+X
+
+@onready var wave_index_label: Label = %WaveIndexLabel
+@onready var wave_time_label: Label = %WaveTimeLabel
+
+@onready var spawner: Spawner = $Spawner
+@onready var upgrade_panel: UpgradePanel = %UpgradePanel
+@onready var shop_panel: ShopPanel = %ShopPanel
+@onready var coins_bag: CoinsBag = %CoinsBag
+@onready var touch_controls: CanvasLayer = %TouchControls
+@onready var sub_screen: SubScreen = %SubScreen
+@onready var tutorial_manager: TutorialManager = %TutorialManager
+@onready var pause_screen: PauseScreen = %PauseScreen
+
+var gold_list: Array[Coins]
+
+func _ready() -> void:
+	Global.on_create_block_text.connect(_on_create_block_text)
+	Global.on_create_damage_text.connect(_on_create_damage_text)
+	Global.on_upgrade_selected.connect(_on_upgrade_selected)
+	Global.on_create_heal_text.connect(_on_create_heal_text)
+	Global.on_enemy_died.connect(_on_enemy_died)
+	Global.game_paused_changed.connect(_on_game_paused_changed)
+	Global.equipped_weapons.clear()
+	
+	var save_path = ProjectSettings.globalize_path("user://")
+	print("📁 Thư mục save: ", save_path)
+	
+	# Tạo group đễ dễ truy cập
+	tutorial_manager.add_to_group(Global.TUTORIAL_GROUP)
+	sub_screen.add_to_group("sub_screen")
+	touch_controls.add_to_group("touch_controls")
+	
+	# Connect signals
+	tutorial_manager.tutorial_finished.connect(_on_tutorial_finished)
+	
+
+
+func _process(delta: float) -> void:
+	if Global.game_paused: return
+	wave_index_label.text = spawner.get_wave_text()
+	wave_time_label.text = spawner.get_wave_timer_text()
+
+
+func _on_tutorial_finished() -> void:
+	get_tree().change_scene_to_file(Global.MAIN_MENU_PATH)
+
+
+func _on_game_paused_changed(is_paused: bool) -> void:
+	if is_paused:
+		# Pause: dừng các timer
+		if spawner.spawn_timer and not spawner.spawn_timer.is_stopped():
+			spawner.spawn_timer.stop()
+		if spawner.wave_timer and not spawner.wave_timer.is_stopped():
+			spawner.wave_timer.stop()
+	else:
+		# Unpause: tiếp tục các timer
+		if spawner.current_wave_data:
+			if spawner.spawn_timer.is_stopped():
+				spawner.set_spawn_timer()  # Restart spawn timer
+			if spawner.wave_timer.is_stopped():
+				spawner.wave_timer.start()  # Restart wave timer_paused
+
+
+func create_floating_text(unit: Node2D) -> FloatingText:
+	var instance := Global.FLOATING_TEXT_SCENE.instantiate() as FloatingText
+	get_tree().root.add_child(instance)
+	var random_pos := randf_range(0, TAU) * 35
+	var spawn_pos := unit.global_position + Vector2.RIGHT.rotated(random_pos)
+	instance.global_position = spawn_pos
+	return instance
+
+
+func show_upgrades() -> void:
+	upgrade_panel.load_upgrades(spawner.wave_index)
+	upgrade_panel.show()
+
+
+func start_new_wave() -> void:
+	Global.game_paused = false
+	Global.player.update_player_new_wave()
+	spawner.wave_index += 1
+	spawner.start_wave()
+	touch_controls.show()
+
+
+func clean_arena() -> void:
+	if gold_list.size() > 0:
+		var target_center_pos := coins_bag.global_position + coins_bag.size / 2.0
+		for gold in gold_list:
+			if is_instance_valid(gold):
+				var gold_item := gold as Coins
+				gold_item.set_collection_target(target_center_pos)
+	
+	gold_list.clear()
+	spawner.clear_enemies()
+
+
+func spawn_coins(enemy: Enemy) -> void:
+	var random_angle := randf_range(0, TAU)
+	var offset := Vector2.RIGHT.rotated(random_angle) * 35 
+	var spawn_pos := enemy.global_position + offset
+	
+	var gold_instance := Global.COINS_SCENE.instantiate() as Coins
+	gold_list.append(gold_instance)
+	
+	gold_instance.global_position = spawn_pos
+	var w := spawner.wave_index
+	var multi := 1.0 + (w - 1) * coin_drop_increase_per_wave
+	var scaled := int(round(enemy.stats.gold_drop * multi)) + (w - 1) * coin_drop_add_per_wave
+	gold_instance.value = max(1, scaled)
+
+	call_deferred("add_child", gold_instance)
+	
+	# ✅ Add coin vào group (không phải parent)
+	gold_instance.call_deferred("add_to_group", Global.COINS_TAG)
+
+
+func _on_create_block_text(unit: Node2D) -> void:
+	var text := create_floating_text(unit)
+	text.setup("Blocked!", blocked_color)
+
+
+func _on_create_damage_text(unit: Node2D, hitbox: HitboxComponent) -> void:
+	var text := create_floating_text(unit)
+	var color := critical_color if hitbox.critical else normal_color
+	text.setup(str(hitbox.damage), color)
+
+
+func _on_create_heal_text(unit: Node2D, heal: float) -> void:
+	var text := create_floating_text(unit)
+	text.setup("+ %s" % heal, hp_color)
+
+
+func _on_upgrade_selected() -> void:
+	upgrade_panel.hide()
+	shop_panel.load_shop(spawner.wave_index)
+	shop_panel.show()
+
+
+func _on_spawner_on_wave_completed() -> void:
+	if not Global.player: return
+	touch_controls.hide()
+	clean_arena()
+	await get_tree().create_timer(1.0).timeout
+	if not spawner.check_wave_data(spawner.wave_index + 1):
+		print("End")
+		sub_screen.show_win_screen(true)
+	else: 
+		show_upgrades()
+		tutorial_manager.check_step_condition("wave_complete")
+		
+
+
+func _on_shop_panel_on_shop_next_wave() -> void:
+	shop_panel.hide()
+	start_new_wave()
+
+
+func _on_enemy_died(enemy: Enemy) -> void:
+	spawn_coins(enemy)
+
+
+func _on_selection_panel_on_selection_completed() -> void:
+	var player := Global.get_selected_player()
+	add_child(player)
+	player.add_weapon(Global.main_weapon_selected)
+	shop_panel.create_item_weapon(Global.main_weapon_selected)
+	Global.equipped_weapons.append(Global.main_weapon_selected)
+	
+	spawner.start_wave()
+	Global.game_paused = false
+	touch_controls.show()
+	tutorial_manager.start()
+
+
+func _on_pause_game_pressed() -> void:
+	Global.game_paused = true
+	pause_screen.visible = true
