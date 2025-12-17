@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=3 uid="uid://bjhraywhhpn3h"]
+[gd_scene load_steps=30 format=3 uid="uid://bjhraywhhpn3h"]
 
 [ext_resource type="Texture2D" uid="uid://cy4xfx762bxgb" path="res://assets/sprites/BG.png" id="1_5tue2"]
 [ext_resource type="Script" uid="uid://fylssyuoxjey" path="res://scenes/arena/arena.gd" id="1_asdgj"]
@@ -23,7 +23,6 @@
 [ext_resource type="AudioStream" uid="uid://prc8bub0x4s1" path="res://assets/audio/Bg Music.mp3" id="18_8kk48"]
 [ext_resource type="PackedScene" uid="uid://be4y0ch5v7qa5" path="res://scenes/ui/selection_panel/selection_panel.tscn" id="18_tp84n"]
 [ext_resource type="PackedScene" uid="uid://b3if6e64nlj3c" path="res://scenes/menu/sub_screen.tscn" id="18_wqbss"]
-[ext_resource type="PackedScene" uid="uid://dml5iq6dbq4p3" path="res://scenes/touch/touch_controls.tscn" id="19_8kk48"]
 [ext_resource type="PackedScene" uid="uid://8p24iu8c60jx" path="res://scenes/tutorial/tutorial_manager.tscn" id="21_fir7s"]
 [ext_resource type="Texture2D" uid="uid://dthxygeq7biw8" path="res://assets/download/setting4.png" id="23_bxbl0"]
 [ext_resource type="PackedScene" uid="uid://dybhrjw448vuj" path="res://scenes/menu/pause_screen.tscn" id="26_bxbl0"]
@@ -44,6 +43,8 @@ normal_color = Color(1, 1, 1, 1)
 blocked_color = Color(1, 0.290196, 0.454902, 1)
 critical_color = Color(0.996078, 0.780392, 0.380392, 1)
 hp_color = Color(0, 0.627451, 0.482353, 1)
+coin_drop_increase_per_wave = null
+coin_drop_add_per_wave = null
 
 [node name="BlackBG" type="Sprite2D" parent="."]
 scale = Vector2(2, 2)
@@ -137,10 +138,6 @@ grow_vertical = 2
 texture = SubResource("AtlasTexture_bxbl0")
 expand_mode = 1
 stretch_mode = 5
-
-[node name="TouchControls" parent="." instance=ExtResource("19_8kk48")]
-unique_name_in_owner = true
-visible = false
 
 [node name="TutorialManager" parent="." instance=ExtResource("21_fir7s")]
 unique_name_in_owner = true

@@ -41,9 +41,7 @@ func die() -> void:
 
 	if owner.is_in_group("player"):
 		Global.game_paused = true
-		var touch_controls = get_tree().get_first_node_in_group("touch_controls")
-		if touch_controls:
-			touch_controls.hide()
+
 		var sub_screen = get_tree().get_first_node_in_group("sub_screen")
 		if sub_screen:
 			sub_screen.show_win_screen(false)
